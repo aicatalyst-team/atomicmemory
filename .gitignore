@@ -14,6 +14,9 @@ test-results/
 playwright-report/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.nyc_output/
+.vitest/
 
 # Turborepo
 .turbo/
@@ -22,6 +25,8 @@ out/
 
 # Logs
 *.log
+*.log.*
+logs/
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
@@ -30,10 +35,36 @@ yarn-error.log*
 # Env files (never commit secrets). Sanitized example templates are allowed.
 .env
 .env.*
+.envrc
 !.env.example
 !.env*.example
 # Smoke-test scratch env created by packages/core/scripts/docker-smoke-test.sh.
 .env.docker-smoke-test
+
+# Credentials / private keys
+.npmrc
+.yarnrc.yml
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+service-account*.json
+
+# Cloud / deployment local state
+.aws/
+.azure/
+.gcp/
+.kube/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+terraform.tfvars
+docker-compose.override.yml
 
 # OS / editor
 .DS_Store
@@ -46,7 +77,24 @@ Thumbs.db
 # Local-only scratch
 .tmp/
 tmp/
+temp/
+*.tmp
+*.temp
 *.local
+commit-message.txt
+pr-description.md
+
+# Local databases / dumps
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+
+# Local caches / package artifacts
+.cache/
+.tsup/
+*.tgz
 
 # Local raw-storage filesystem data (RAW_STORAGE_LOCAL_FS_ROOT defaults).
 data/raw-storage/
