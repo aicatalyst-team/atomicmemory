@@ -1,6 +1,6 @@
 {
   "name": "@atomicmemory/openai-agents",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AtomicMemory adapter for the OpenAI Agents SDK — pre-run memory retrieval, post-run ingest, and function tools.",
   "type": "module",
   "main": "dist/index.js",
@@ -34,7 +34,7 @@
     "prepublishOnly": "node -e \"const v=require('./package.json').dependencies['@atomicmemory/sdk'];if(v.startsWith('file:')||v.startsWith('link:')){console.error('refusing to publish: @atomicmemory/sdk is '+v+'. Publish the SDK first, then pin to a registry version here.');process.exit(1)}\""
   },
   "dependencies": {
-    "@atomicmemory/sdk": "^1.0.1",
+    "@atomicmemory/sdk": "^1.0.2",
     "@openai/agents": "^0.8.5",
     "zod": "^4.3.6"
   },

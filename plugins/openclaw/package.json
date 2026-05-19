@@ -1,6 +1,6 @@
 {
   "name": "@atomicmemory/openclaw-plugin",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "AtomicMemory plugin for OpenClaw — persistent semantic memory and deterministic session snapshots across channels.",
   "type": "module",
   "main": "dist/index.js",
@@ -30,7 +30,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@atomicmemory/mcp-server": "^0.1.0"
+    "@atomicmemory/mcp-server": "^0.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
