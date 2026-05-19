@@ -1,0 +1,27 @@
+name: Sync Public to Private
+
+on:
+  push:
+    branches:
+      - main # Triggers whenever code is pushed or merged into public main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Public Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Private Repo
+        run: |
+          # Configure Git identities
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+
+          # Add the atomicmemory-internal repository as a secure remote
+          git remote add private-target https://x-access-token:${{ secrets.SYNC_TOKEN }}@://github.com
+
+          # Force push the main branch to the private repo to ensure perfect alignment
+          git push private-target main --force
