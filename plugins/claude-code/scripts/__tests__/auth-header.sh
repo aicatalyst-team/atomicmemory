@@ -6,11 +6,13 @@
 #
 # Shadows `curl` with a bash function that captures argv to a file,
 # then exercises `am_post_quick_ingest` and `am_search_fast` with
-# AM_API_KEY both set and unset. Asserts:
+# AM_API_KEY explicitly set, locally defaulted, and unset for remote URLs. Asserts:
 #   1. With AM_API_KEY set, both curl invocations include
 #      `-H Authorization: Bearer <key>`.
-#   2. With AM_API_KEY empty, neither invocation includes the
-#      Authorization header.
+#   2. With the local quickstart URL and no explicit API key, both curl
+#      invocations include the local quickstart Bearer key.
+#   3. With a remote URL and no API key, neither invocation includes
+#      the Authorization header.
 #
 # Matches core's `requireBearer` middleware contract
 # (atomicmemory-core/src/middleware/require-bearer.ts).
@@ -100,27 +102,42 @@ unset ATOMICMEMORY_API_KEY
 unset ATOMICMEMORY_API_URL
 
 # ---------------------------------------------------------------------------
-# Case 2: AM_API_KEY unset → no Authorization header on either call
+# Case 2: local quickstart default → Authorization header present
 # ---------------------------------------------------------------------------
-printf '\nCase 2: AM_API_KEY unset → no Authorization header\n'
+printf '\nCase 2: local quickstart default → Bearer auth header on hook curls\n'
+am_load_env || { printf 'am_load_env failed\n' >&2; exit 1; }
+
+reset_log
+am_post_quick_ingest "$body" >/dev/null 2>&1 || true
+argv_contains_header "Authorization: Bearer local-dev-key" && cond=true || cond=false
+assert "ingest curl includes local quickstart Authorization header" "$cond"
+
+reset_log
+am_search_fast "what did we decide" 3 >/dev/null 2>&1 || true
+argv_contains_header "Authorization: Bearer local-dev-key" && cond=true || cond=false
+assert "search curl includes local quickstart Authorization header" "$cond"
+
+# ---------------------------------------------------------------------------
+# Case 3: remote URL without API key → no Authorization header
+# ---------------------------------------------------------------------------
+printf '\nCase 3: remote URL without API key → no Authorization header\n'
+export ATOMICMEMORY_API_URL="https://memory.example.com"
 am_load_env || { printf 'am_load_env failed\n' >&2; exit 1; }
 
 reset_log
 am_post_quick_ingest "$body" >/dev/null 2>&1 || true
 grep -q '^Authorization:' "$ARGV_LOG" && cond=false || cond=true
-assert "ingest curl has no Authorization header" "$cond"
+assert "remote ingest curl has no Authorization header" "$cond"
 
 reset_log
 am_search_fast "what did we decide" 3 >/dev/null 2>&1 || true
 grep -q '^Authorization:' "$ARGV_LOG" && cond=false || cond=true
-assert "search curl has no Authorization header" "$cond"
+assert "remote search curl has no Authorization header" "$cond"
 
 # ---------------------------------------------------------------------------
-# Case 3: AM_API_URL override propagates to the curl call
+# Case 4: AM_API_URL override propagates to the curl call
 # ---------------------------------------------------------------------------
-printf '\nCase 3: AM_API_URL override propagates to the wire\n'
-export ATOMICMEMORY_API_URL="https://memory.example.com"
-am_load_env || { printf 'am_load_env failed\n' >&2; exit 1; }
+printf '\nCase 4: AM_API_URL override propagates to the wire\n'
 
 reset_log
 am_post_quick_ingest "$body" >/dev/null 2>&1 || true
