@@ -10,6 +10,12 @@ import {
   type RetrievalProfile,
   type RetrievalProfileName,
 } from './services/retrieval-profiles.js';
+import {
+  DEFAULT_CODEX_LLM_MODEL,
+  DEFAULT_OPENAI_COMPATIBLE_LLM_MODEL,
+} from './services/llm-defaults.js';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { parsePointerUriSchemes } from './storage/pointer-uri-allowlist.js';
 import {
   collectFilecoinProviderEnvKeys,
@@ -18,7 +24,7 @@ import {
 } from './storage/providers/filecoin/config.js';
 
 export type EmbeddingProviderName = 'openai' | 'ollama' | 'openai-compatible' | 'transformers' | 'voyage';
-export type LLMProviderName = EmbeddingProviderName | 'groq' | 'anthropic' | 'google-genai' | 'claude-code';
+export type LLMProviderName = EmbeddingProviderName | 'groq' | 'anthropic' | 'google-genai' | 'claude-code' | 'codex';
 export type VectorBackendName = 'pgvector' | 'ruvector-mock' | 'zvec-mock';
 export type CrossEncoderDtype = 'auto' | 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'bnb4' | 'q4f16';
 
@@ -123,6 +129,7 @@ export interface RuntimeConfig {
   llmModel: string;
   llmApiUrl?: string;
   llmApiKey?: string;
+  codexAuthPath: string;
   groqApiKey?: string;
   ollamaBaseUrl: string;
   vectorBackend: VectorBackendName;
@@ -687,6 +694,7 @@ function parseLlmProvider(value: string | undefined, fallback: LLMProviderName):
     'anthropic',
     'google-genai',
     'claude-code',
+    'codex',
   ];
   if (!valid.includes(value as LLMProviderName)) {
     throw new Error(`Invalid provider "${value}". Must be one of: ${valid.join(', ')}`);
@@ -696,7 +704,16 @@ function parseLlmProvider(value: string | undefined, fallback: LLMProviderName):
 
 function defaultLlmModel(provider: LLMProviderName): string {
   if (provider === 'claude-code') return '';
-  return 'gpt-4o-mini';
+  if (provider === 'codex') return DEFAULT_CODEX_LLM_MODEL;
+  return DEFAULT_OPENAI_COMPATIBLE_LLM_MODEL;
+}
+
+function defaultCodexAuthPath(): string {
+  const explicitPath = optionalEnv('CODEX_AUTH_PATH');
+  if (explicitPath) return explicitPath;
+  const codexHome = optionalEnv('CODEX_HOME');
+  if (codexHome) return join(codexHome, 'auth.json');
+  return join(homedir(), '.codex', 'auth.json');
 }
 
 
@@ -1163,6 +1180,7 @@ export const config: RuntimeConfig = {
   llmModel: optionalEnv('LLM_MODEL') ?? defaultLlmModel(llmProvider),
   llmApiUrl: optionalEnv('LLM_API_URL'),
   llmApiKey: optionalEnv('LLM_API_KEY'),
+  codexAuthPath: defaultCodexAuthPath(),
 
   // Groq
   groqApiKey: groqApiKey ?? undefined,

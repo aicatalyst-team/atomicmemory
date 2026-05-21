@@ -297,13 +297,20 @@ Set `LLM_PROVIDER` to choose the extraction backend:
 | `anthropic` | Anthropic Messages API |
 | `google-genai` | Google Gemini OpenAI-compatible endpoint |
 | `claude-code` | Local Claude Code Agent SDK session for personal development |
+| `codex` | Local Codex account session for personal development |
 
-For personal local use, `LLM_PROVIDER=claude-code` uses the logged-in
-`claude` CLI session instead of requiring `ANTHROPIC_API_KEY`. It still consumes
-the user's Claude Code / Claude subscription limits and is not intended for
-hosted or team deployments. Pair it with a non-OpenAI embedding provider, such
-as `EMBEDDING_PROVIDER=transformers`, if you want to run without an OpenAI API
-key as well.
+For personal local use, `LLM_PROVIDER=claude-code` and `LLM_PROVIDER=codex`
+use the logged-in `claude` or `codex` account session instead of requiring a
+separate LLM API key. `claude-code` routes through the Claude Agent SDK;
+`codex` reads the auth file produced by `codex login` and calls the Codex
+backend directly. They still consume the user's account limits and are not
+intended for hosted or team deployments. Pair either one with a non-OpenAI
+embedding provider, such as `EMBEDDING_PROVIDER=transformers`, if you want to
+run without an OpenAI API key as well.
+
+For AtomicMemory for Codex local setup, prefer `codex login` with
+`LLM_PROVIDER=codex`. Use `LLM_PROVIDER=openai` plus `OPENAI_API_KEY` for
+hosted or team deployments.
 
 In-process benchmark harnesses can avoid editing env files by passing a
 composition-time config to the runtime:

@@ -3,6 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_CODEX_LLM_MODEL } from '../services/llm-defaults.js';
 
 const trackedEnvNames = [
   'SIMILARITY_THRESHOLD',
@@ -18,6 +19,8 @@ const trackedEnvNames = [
   'RAW_STORAGE_DEPLOYMENT_ENV',
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
+  'CODEX_AUTH_PATH',
+  'CODEX_HOME',
 ] as const;
 const originalEnv = Object.fromEntries(
   trackedEnvNames.map((name) => [name, process.env[name]]),
@@ -87,6 +90,20 @@ describe('config env loading', () => {
     const { config } = await import('../config.js');
 
     expect(config.llmModel).toBe('sonnet');
+  });
+
+  it('accepts codex LLM provider without an OpenAI API key', async () => {
+    process.env.LLM_PROVIDER = 'codex';
+    process.env.EMBEDDING_PROVIDER = 'transformers';
+    delete process.env.LLM_MODEL;
+    delete process.env.OPENAI_API_KEY;
+    vi.resetModules();
+
+    const { config } = await import('../config.js');
+
+    expect(config.llmProvider).toBe('codex');
+    expect(config.llmModel).toBe(DEFAULT_CODEX_LLM_MODEL);
+    expect(config.codexAuthPath).toContain('.codex/auth.json');
   });
 
   it('loads optional admin cleanup endpoint config', async () => {

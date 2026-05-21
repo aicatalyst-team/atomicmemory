@@ -17,6 +17,7 @@ const baseConfig: LLMConfig = {
   groqApiKey: 'test-groq-key',
   llmApiUrl: undefined,
   llmApiKey: undefined,
+  codexAuthPath: '/tmp/codex-auth.json',
   ollamaBaseUrl: 'http://localhost:11434',
   llmSeed: undefined,
   costLoggingEnabled: false,
@@ -65,6 +66,13 @@ describe('createLLMProvider', () => {
 
   it('creates Claude Code provider', () => {
     initLlm({ ...baseConfig, llmProvider: 'claude-code', llmModel: '' });
+    const provider = createLLMProvider();
+    expect(provider).toBeDefined();
+    expect(typeof provider.chat).toBe('function');
+  });
+
+  it('creates Codex OAuth provider', () => {
+    initLlm({ ...baseConfig, llmProvider: 'codex', llmModel: '' });
     const provider = createLLMProvider();
     expect(provider).toBeDefined();
     expect(typeof provider.chat).toBe('function');
