@@ -80,8 +80,26 @@ describe('CodexLLM', () => {
     ]);
     expect(requestBody.store).toBe(false);
     expect(requestBody.stream).toBe(true);
-    expect(requestBody.max_output_tokens).toBe(256);
     expect(requestBody.prompt_cache_key).toMatch(/^atomicmemory:[a-f0-9]{32}$/);
+  });
+
+  it('omits max_output_tokens from the Codex request body even when callers pass maxTokens', async () => {
+    // Live Codex backend (chatgpt.com/backend-api/codex/responses) rejects
+    // `max_output_tokens` with HTTP 400 "Unsupported parameter". Callers
+    // may still pass `maxTokens` through the provider-neutral ChatOptions
+    // surface, but the Codex-specific request body must NOT forward it.
+    mockAuth();
+    mockSseResponse(sse('ok'));
+
+    await provider().chat(
+      [{ role: 'user', content: 'hello' }],
+      { maxTokens: 4096 },
+    );
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(requestBody).not.toHaveProperty('max_output_tokens');
+    expect(requestBody).not.toHaveProperty('maxTokens');
+    expect(requestBody).not.toHaveProperty('max_tokens');
   });
 
   it('uses a stable cache key for repeated extraction prompts', async () => {

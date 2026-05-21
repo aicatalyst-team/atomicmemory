@@ -92,7 +92,6 @@ function buildCodexPayload(model: string, messages: ChatMessage[], options: Chat
     stream: true,
     include: ['reasoning.encrypted_content'],
     prompt_cache_key: codexPromptCacheKey(model, instructions),
-    ...(options.maxTokens ? { max_output_tokens: options.maxTokens } : {}),
   };
 }
 
