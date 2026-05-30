@@ -7,6 +7,20 @@ MCP server that exposes [AtomicMemory core](../../packages/core) as four tools t
 - `memory_package` — token-budgeted context package
 - `memory_list` — list recent scoped memories
 
+## Authoritative contract
+
+The REST API and the [`@atomicmemory/sdk`](../../packages/sdk) type surface are
+the authoritative memory contract — provenance, scope, mutation decisions,
+lineage, retrieval scores, and context-package metadata are defined there. This
+MCP server is a thin callable-tool adapter over that contract.
+
+Tool results are returned as JSON-stringified text for host compatibility, so
+the text payload is a transport convenience, not a separate audit surface. For
+evidence or audit purposes — inspecting why a memory exists, what it replaced,
+or what shaped a retrieval — read the REST/SDK projection rather than parsing
+MCP tool text. New memory semantics land in Core and the SDK first; this adapter
+exposes them, it does not define them.
+
 ## Status: package entrypoint
 
 This package is intended to publish as `@atomicmemory/mcp-server`. Cursor and

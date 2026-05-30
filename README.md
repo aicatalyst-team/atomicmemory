@@ -117,6 +117,54 @@ Until latency benchmarks are linked from the docs, treat the engine as
 "designed for single-digit-ms local retrieval on a developer laptop at typical
 agent corpus sizes" — a design target, not a guarantee.
 
+## Validation boundary
+
+Different kinds of proof live in different places. This map states what this
+public repository's CI proves on its own and what is validated elsewhere, so
+readers do not assume the public repo independently proves every product claim.
+
+**Proven in this repository's public CI (every pull request):**
+
+- repo hygiene
+- package metadata checks
+- affected build, typecheck, lint, and self-contained package tests (Node 22
+  and 24)
+- code-health gates
+- package `pack` dry-run plus tarball-shape verification
+- docs contract (install commands, package status labels, and smoke rows stay
+  in sync)
+- public integration smoke
+- security compliance
+
+**Also in this repository, run in package or release contexts (not the per-PR
+affected lane):**
+
+- Core OpenAPI generation and drift check (`generate:openapi` / `check:openapi`)
+- Core API schema tests (Schemathesis)
+- Core Docker image smoke (runs in the Docker image publish workflow)
+- DB-backed Core tests, which require Postgres/pgvector provisioning
+
+**Validated outside this repository:**
+
+- hosted-service behavior
+- release orchestration and marketplace operations
+- full benchmark and evaluation harnesses, including performance and cost
+  reproduction
+- global, end-to-end product behavior
+
+These run in separate internal repositories and surface as public artifacts when
+they are ready to publish.
+
+**Not yet public (planned):**
+
+- reproducible benchmark artifacts and raw evaluation harnesses, including the
+  BEAM and LoCoMo suites referenced in the headline results
+- any global lifecycle fixtures not currently published
+
+This is a map, not a ranking: external or not-yet-public validation is not
+presented as equivalent to public CI from a reader-trust standpoint. It simply
+lives in a different place.
+
 ## Quickstart
 
 For the full walkthrough, see the
