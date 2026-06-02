@@ -9,7 +9,7 @@ FROM registry.access.redhat.com/ubi9/nodejs-22
 ENV CI=1 HUSKY=0
 
 USER 0
-RUN npm install -g corepack@latest && corepack enable && \
+RUN npm install -g corepack@latest tsx && corepack enable && \
     rm -rf /opt/app-root/src/.npm && \
     chown -R 1001:0 /opt/app-root/src/.npm-global
 USER 1001
@@ -25,11 +25,7 @@ COPY --chown=1001:0 packages/core/package.json packages/core/package.json
 # Install production deps for core only, skip postinstall scripts entirely
 # This avoids downloading onnxruntime GPU binaries (~600MB)
 RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts && \
-    rm -rf /opt/app-root/src/.local/share/pnpm/store && \
-    # Run esbuild postinstall (required for tsx to work) \
-    node node_modules/.pnpm/esbuild@*/node_modules/esbuild/install.js 2>/dev/null || true && \
-    # Verify tsx is available \
-    ./node_modules/.bin/tsx --version || echo "tsx not found - will use npx"
+    rm -rf /opt/app-root/src/.local/share/pnpm/store
 
 # Copy the core source (TypeScript - runtime uses tsx to run src/ directly)
 COPY --chown=1001:0 packages/core/src ./src
@@ -48,4 +44,4 @@ EXPOSE 17350
 
 USER 1001
 
-CMD ["./node_modules/.bin/tsx", "src/server.ts"]
+CMD ["tsx", "src/server.ts"]
