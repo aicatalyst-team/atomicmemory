@@ -1,0 +1,77 @@
+# UBI-based Dockerfile for AtomicMemory Core
+# Build context: workspace root (the entire monorepo)
+#
+# Multi-stage build using Turborepo prune + pnpm deploy pattern:
+#   1) Pruner: shrink workspace to @atomicmemory/core scope
+#   2) Installer: install production dependencies from pruned lockfile
+#   3) Builder: pnpm deploy to create self-contained /deploy tree
+#   4) Runtime: UBI Node.js 22 image with deployed package
+
+# ---------------------------------------------------------------------------
+# Stage 1 - pruner: shrink workspace to @atomicmemory/core's scope
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS pruner
+
+ENV CI=1 HUSKY=0
+
+USER 0
+RUN npm install -g corepack@latest && corepack enable
+USER 1001
+
+WORKDIR /opt/app-root/src
+COPY --chown=1001:0 . .
+RUN npx turbo@2.9.14 prune @atomicmemory/core --docker
+
+# ---------------------------------------------------------------------------
+# Stage 2 - installer: production deps only from pruned lockfile
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS installer
+
+ENV CI=1 HUSKY=0
+
+USER 0
+RUN npm install -g corepack@latest && corepack enable
+USER 1001
+
+WORKDIR /opt/app-root/src
+COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/json/ ./
+COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/pnpm-lock.yaml ./pnpm-lock.yaml
+RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts
+
+# ---------------------------------------------------------------------------
+# Stage 3 - builder: add full source and deploy a flat tree to /deploy
+# ---------------------------------------------------------------------------
+FROM installer AS builder
+
+COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/full/ ./
+RUN pnpm deploy --filter @atomicmemory/core --prod /opt/app-root/deploy
+
+# ---------------------------------------------------------------------------
+# Stage 4 - runtime: UBI Node.js 22 with deployed package
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22
+
+WORKDIR /opt/app-root/src
+
+# Copy the self-contained deployment tree
+COPY --from=builder --chown=1001:0 /opt/app-root/deploy/node_modules ./node_modules
+COPY --from=builder --chown=1001:0 /opt/app-root/deploy/package.json ./package.json
+
+# Copy TypeScript source (runtime uses tsx against src/, not prebuilt dist/)
+COPY --chown=1001:0 packages/core/src ./src
+COPY --chown=1001:0 packages/core/tsconfig.json ./tsconfig.json
+
+# OpenShift compatibility: group 0 permissions for arbitrary UID
+RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
+
+# Environment defaults for PoC
+ENV NODE_ENV=production
+ENV PORT=17350
+ENV EMBEDDING_DIMENSIONS=384
+ENV RAW_STORAGE_DEPLOYMENT_ENV=local
+
+EXPOSE 17350
+
+USER 1001
+
+CMD ["./node_modules/.bin/tsx", "src/server.ts"]
