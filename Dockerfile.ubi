@@ -1,16 +1,14 @@
 # UBI-based Dockerfile for AtomicMemory Core
 # Build context: workspace root (the entire monorepo)
 #
-# Multi-stage build using Turborepo prune + pnpm deploy pattern:
-#   1) Pruner: shrink workspace to @atomicmemory/core scope
-#   2) Installer: install production dependencies from pruned lockfile
-#   3) Builder: pnpm deploy to create self-contained /deploy tree
-#   4) Runtime: UBI Node.js 22 image with deployed package
+# Simplified build that copies only the core package source and installs
+# dependencies directly, avoiding the full turborepo prune pattern that
+# downloads ~600MB of onnxruntime GPU binaries via pnpm deploy postinstall.
 
 # ---------------------------------------------------------------------------
-# Stage 1 - pruner: shrink workspace to @atomicmemory/core's scope
+# Stage 1 - builder: install deps and prepare deployment
 # ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/nodejs-22 AS pruner
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS builder
 
 ENV CI=1 HUSKY=0
 
@@ -21,45 +19,37 @@ RUN npm install -g corepack@latest && corepack enable && \
 USER 1001
 
 WORKDIR /opt/app-root/src
-COPY --chown=1001:0 . .
-RUN npx turbo@2.9.14 prune @atomicmemory/core --docker
 
-# ---------------------------------------------------------------------------
-# Stage 2 - installer: production deps only from pruned lockfile
-# ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/nodejs-22 AS installer
+# Copy workspace config files for pnpm
+COPY --chown=1001:0 package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
-ENV CI=1 HUSKY=0
+# Copy only the core package.json for dependency resolution
+COPY --chown=1001:0 packages/core/package.json packages/core/package.json
 
-USER 0
-RUN npm install -g corepack@latest && corepack enable && \
-    rm -rf /opt/app-root/src/.npm && \
-    chown -R 1001:0 /opt/app-root/src/.npm-global
-USER 1001
-
-WORKDIR /opt/app-root/src
-COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/json/ ./
-COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/pnpm-lock.yaml ./pnpm-lock.yaml
+# Install production deps for core only (skip postinstall scripts to avoid
+# downloading 600MB+ onnxruntime GPU binaries)
 RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts
 
-# ---------------------------------------------------------------------------
-# Stage 3 - builder: add full source and deploy a flat tree to /deploy
-# ---------------------------------------------------------------------------
-FROM installer AS builder
+# Now selectively run postinstall for packages that need it (skip onnxruntime-node)
+RUN cd node_modules/.pnpm/protobufjs@*/node_modules/protobufjs && node scripts/postinstall 2>/dev/null || true
+RUN cd node_modules/.pnpm/esbuild@*/node_modules/esbuild && node install.js 2>/dev/null || true
+RUN cd node_modules/.pnpm/sharp@*/node_modules/sharp && node install/check.js 2>/dev/null || true
 
-COPY --from=pruner --chown=1001:0 /opt/app-root/src/out/full/ ./
-RUN pnpm deploy --filter @atomicmemory/core --prod /opt/app-root/deploy
+# Copy the core source
+COPY --chown=1001:0 packages/core/src ./packages/core/src
+COPY --chown=1001:0 packages/core/tsconfig.json ./packages/core/tsconfig.json
+COPY --chown=1001:0 packages/core/tsconfig.build.json ./packages/core/tsconfig.build.json
 
 # ---------------------------------------------------------------------------
-# Stage 4 - runtime: UBI Node.js 22 with deployed package
+# Stage 2 - runtime: lean UBI Node.js 22 image
 # ---------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/nodejs-22
 
 WORKDIR /opt/app-root/src
 
-# Copy the self-contained deployment tree
-COPY --from=builder --chown=1001:0 /opt/app-root/deploy/node_modules ./node_modules
-COPY --from=builder --chown=1001:0 /opt/app-root/deploy/package.json ./package.json
+# Copy node_modules from builder
+COPY --from=builder --chown=1001:0 /opt/app-root/src/node_modules ./node_modules
+COPY --from=builder --chown=1001:0 /opt/app-root/src/packages/core/package.json ./package.json
 
 # Copy TypeScript source (runtime uses tsx against src/, not prebuilt dist/)
 COPY --chown=1001:0 packages/core/src ./src
