@@ -77,20 +77,18 @@ spec:
             capabilities:
               drop:
                 - ALL
-        # PostgreSQL/pgvector sidecar (Bitnami image supports non-root)
+        # PostgreSQL sidecar (Red Hat SCL image supports arbitrary UID)
         - name: postgres
-          image: bitnami/postgresql:17.5.0
+          image: registry.redhat.io/rhel9/postgresql-16:latest
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRESQL_USERNAME
+            - name: POSTGRESQL_USER
               value: "atomicmemory"
             - name: POSTGRESQL_PASSWORD
               value: "atomicmemory"
             - name: POSTGRESQL_DATABASE
               value: "atomicmemory"
-            - name: POSTGRESQL_EXTRA_FLAGS
-              value: "-c shared_preload_libraries=''"
           resources:
             requests:
               memory: "256Mi"
@@ -101,12 +99,7 @@ spec:
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -q
-                - -d
-                - atomicmemory
-                - -U
-                - atomicmemory
+                - /usr/libexec/check-container
             initialDelaySeconds: 10
             periodSeconds: 5
           securityContext:

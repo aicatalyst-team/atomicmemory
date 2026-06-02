@@ -1,8 +1,9 @@
 # UBI-based Dockerfile for AtomicMemory Core
 # Build context: workspace root (the entire monorepo)
 #
-# Single-stage build to minimize ephemeral storage usage.
-# Skips postinstall scripts to avoid downloading ~600MB of onnxruntime GPU binaries.
+# Strategy: Install all deps for the core package using pnpm workspace,
+# then run the server from within the packages/core directory where
+# pnpm correctly resolves node_modules.
 
 FROM registry.access.redhat.com/ubi9/nodejs-22
 
@@ -16,25 +17,23 @@ USER 1001
 
 WORKDIR /opt/app-root/src
 
-# Copy workspace config files needed for pnpm workspace resolution
+# Copy workspace config files for pnpm workspace resolution
 COPY --chown=1001:0 package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
-# Copy only the core package.json for dependency resolution
+# Copy the core package.json
 COPY --chown=1001:0 packages/core/package.json packages/core/package.json
 
-# Install production deps for core only, skip postinstall scripts entirely
-# This avoids downloading onnxruntime GPU binaries (~600MB)
+# Install production deps for core (skip postinstall to avoid onnxruntime download)
 RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts && \
     rm -rf /opt/app-root/src/.local/share/pnpm/store
 
-# Copy the core source (TypeScript - runtime uses tsx to run src/ directly)
-COPY --chown=1001:0 packages/core/src ./src
-COPY --chown=1001:0 packages/core/tsconfig.json ./tsconfig.json
+# Copy the core source
+COPY --chown=1001:0 packages/core/src packages/core/src
+COPY --chown=1001:0 packages/core/tsconfig.json packages/core/tsconfig.json
 
-# OpenShift compatibility: group 0 permissions for arbitrary UID
+# OpenShift compatibility
 RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
 
-# Environment defaults for PoC
 ENV NODE_ENV=production
 ENV PORT=17350
 ENV EMBEDDING_DIMENSIONS=384
@@ -44,4 +43,6 @@ EXPOSE 17350
 
 USER 1001
 
+# Run from the core package directory where pnpm resolves node_modules correctly
+WORKDIR /opt/app-root/src/packages/core
 CMD ["tsx", "src/server.ts"]
