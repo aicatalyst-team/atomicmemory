@@ -1,14 +1,10 @@
 # UBI-based Dockerfile for AtomicMemory Core
 # Build context: workspace root (the entire monorepo)
 #
-# Simplified build that copies only the core package source and installs
-# dependencies directly, avoiding the full turborepo prune pattern that
-# downloads ~600MB of onnxruntime GPU binaries via pnpm deploy postinstall.
+# Single-stage build to minimize ephemeral storage usage.
+# Skips postinstall scripts to avoid downloading ~600MB of onnxruntime GPU binaries.
 
-# ---------------------------------------------------------------------------
-# Stage 1 - builder: install deps and prepare deployment
-# ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/nodejs-22 AS builder
+FROM registry.access.redhat.com/ubi9/nodejs-22
 
 ENV CI=1 HUSKY=0
 
@@ -20,38 +16,19 @@ USER 1001
 
 WORKDIR /opt/app-root/src
 
-# Copy workspace config files for pnpm
+# Copy workspace config files needed for pnpm workspace resolution
 COPY --chown=1001:0 package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
 # Copy only the core package.json for dependency resolution
 COPY --chown=1001:0 packages/core/package.json packages/core/package.json
 
-# Install production deps for core only (skip postinstall scripts to avoid
-# downloading 600MB+ onnxruntime GPU binaries)
-RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts
+# Install production deps for core only, skip postinstall scripts entirely
+# This avoids downloading onnxruntime GPU binaries (~600MB)
+RUN pnpm install --frozen-lockfile --filter @atomicmemory/core --prod --ignore-scripts && \
+    rm -rf /opt/app-root/src/.local/share/pnpm/store && \
+    rm -rf /tmp/*
 
-# Now selectively run postinstall for packages that need it (skip onnxruntime-node)
-RUN cd node_modules/.pnpm/protobufjs@*/node_modules/protobufjs && node scripts/postinstall 2>/dev/null || true
-RUN cd node_modules/.pnpm/esbuild@*/node_modules/esbuild && node install.js 2>/dev/null || true
-RUN cd node_modules/.pnpm/sharp@*/node_modules/sharp && node install/check.js 2>/dev/null || true
-
-# Copy the core source
-COPY --chown=1001:0 packages/core/src ./packages/core/src
-COPY --chown=1001:0 packages/core/tsconfig.json ./packages/core/tsconfig.json
-COPY --chown=1001:0 packages/core/tsconfig.build.json ./packages/core/tsconfig.build.json
-
-# ---------------------------------------------------------------------------
-# Stage 2 - runtime: lean UBI Node.js 22 image
-# ---------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/nodejs-22
-
-WORKDIR /opt/app-root/src
-
-# Copy node_modules from builder
-COPY --from=builder --chown=1001:0 /opt/app-root/src/node_modules ./node_modules
-COPY --from=builder --chown=1001:0 /opt/app-root/src/packages/core/package.json ./package.json
-
-# Copy TypeScript source (runtime uses tsx against src/, not prebuilt dist/)
+# Copy the core source (TypeScript - runtime uses tsx to run src/ directly)
 COPY --chown=1001:0 packages/core/src ./src
 COPY --chown=1001:0 packages/core/tsconfig.json ./tsconfig.json
 
