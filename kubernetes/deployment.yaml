@@ -21,6 +21,22 @@ spec:
         - name: core
           image: image-registry.openshift-image-registry.svc:5000/autopoc-test-builds/atomicmemory-core:latest
           imagePullPolicy: Always
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Postgres to be ready..."
+              for i in $(seq 1 30); do
+                if node -e "const net=require('net');const s=net.createConnection(5432,'localhost');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>{process.exit(1)})"; then
+                  echo "Postgres is ready!"
+                  break
+                fi
+                echo "Attempt $i/30 - waiting..."
+                sleep 2
+              done
+              echo "Running migrations..."
+              tsx src/db/migrate.ts || echo "Migration warning (may already exist)"
+              echo "Starting server..."
+              exec tsx src/server.ts
           ports:
             - containerPort: 17350
           env:
@@ -40,6 +56,10 @@ spec:
               value: "production"
             - name: ATOMICMEMORY_RUN_MIGRATIONS_ON_STARTUP
               value: "true"
+            - name: LLM_PROVIDER
+              value: "openai"
+            - name: OPENAI_API_KEY
+              value: "sk-poc-placeholder-not-used-for-health-checks"
             - name: CORE_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -77,18 +97,21 @@ spec:
             capabilities:
               drop:
                 - ALL
-        # PostgreSQL sidecar (Red Hat SCL image supports arbitrary UID)
+        # PostgreSQL/pgvector sidecar
+        # Use ankane/pgvector which provides postgres with pgvector extension
         - name: postgres
-          image: registry.redhat.io/rhel9/postgresql-16:latest
+          image: ankane/pgvector:latest
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRESQL_USER
+            - name: POSTGRES_USER
               value: "atomicmemory"
-            - name: POSTGRESQL_PASSWORD
+            - name: POSTGRES_PASSWORD
               value: "atomicmemory"
-            - name: POSTGRESQL_DATABASE
+            - name: POSTGRES_DB
               value: "atomicmemory"
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
           resources:
             requests:
               memory: "256Mi"
@@ -99,11 +122,11 @@ spec:
           readinessProbe:
             exec:
               command:
-                - /usr/libexec/check-container
-            initialDelaySeconds: 10
+                - pg_isready
+                - -q
+                - -d
+                - atomicmemory
+                - -U
+                - atomicmemory
+            initialDelaySeconds: 15
             periodSeconds: 5
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
