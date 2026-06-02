@@ -77,18 +77,20 @@ spec:
             capabilities:
               drop:
                 - ALL
-        # PostgreSQL/pgvector sidecar
+        # PostgreSQL/pgvector sidecar (Bitnami image supports non-root)
         - name: postgres
-          image: pgvector/pgvector:pg17
+          image: bitnami/postgresql:17.5.0
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRES_USER
+            - name: POSTGRESQL_USERNAME
               value: "atomicmemory"
-            - name: POSTGRES_PASSWORD
+            - name: POSTGRESQL_PASSWORD
               value: "atomicmemory"
-            - name: POSTGRES_DB
+            - name: POSTGRESQL_DATABASE
               value: "atomicmemory"
+            - name: POSTGRESQL_EXTRA_FLAGS
+              value: "-c shared_preload_libraries=''"
           resources:
             requests:
               memory: "256Mi"
@@ -105,7 +107,7 @@ spec:
                 - atomicmemory
                 - -U
                 - atomicmemory
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
