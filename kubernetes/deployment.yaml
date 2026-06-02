@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core
+  namespace: poc-atomicmemory
+  labels:
+    app: core
+    autopoc.io/project: atomicmemory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: core
+  template:
+    metadata:
+      labels:
+        app: core
+    spec:
+      containers:
+        # AtomicMemory Core API server
+        - name: core
+          image: image-registry.openshift-image-registry.svc:5000/autopoc-test-builds/atomicmemory-core:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 17350
+          env:
+            - name: PORT
+              value: "17350"
+            - name: DATABASE_URL
+              value: "postgresql://atomicmemory:atomicmemory@localhost:5432/atomicmemory"
+            - name: EMBEDDING_PROVIDER
+              value: "transformers"
+            - name: EMBEDDING_MODEL
+              value: "Xenova/all-MiniLM-L6-v2"
+            - name: EMBEDDING_DIMENSIONS
+              value: "384"
+            - name: RAW_STORAGE_DEPLOYMENT_ENV
+              value: "local"
+            - name: NODE_ENV
+              value: "production"
+            - name: ATOMICMEMORY_RUN_MIGRATIONS_ON_STARTUP
+              value: "true"
+            - name: CORE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: atomicmemory-core-secrets
+                  key: CORE_API_KEY
+            - name: STORAGE_KEY_HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: atomicmemory-core-secrets
+                  key: STORAGE_KEY_HMAC_SECRET
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 17350
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 17350
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        # PostgreSQL/pgvector sidecar
+        - name: postgres
+          image: pgvector/pgvector:pg17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "atomicmemory"
+            - name: POSTGRES_PASSWORD
+              value: "atomicmemory"
+            - name: POSTGRES_DB
+              value: "atomicmemory"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -q
+                - -d
+                - atomicmemory
+                - -U
+                - atomicmemory
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

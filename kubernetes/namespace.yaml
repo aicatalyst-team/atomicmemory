@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: poc-atomicmemory
+  labels:
+    app.kubernetes.io/name: atomicmemory
+    app.kubernetes.io/managed-by: autopoc

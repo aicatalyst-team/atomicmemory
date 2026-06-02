@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: core
+  namespace: poc-atomicmemory
+  labels:
+    app: core
+    autopoc.io/project: atomicmemory
+spec:
+  type: ClusterIP
+  selector:
+    app: core
+  ports:
+    - port: 17350
+      targetPort: 17350
